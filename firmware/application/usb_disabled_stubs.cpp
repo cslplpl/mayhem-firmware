@@ -1,15 +1,15 @@
 // firmware/application/usb_disabled_stubs.cpp
-// Stuby wyłączające stos USB/DFU – zapewniają brakujące symbole do linkowania.
+// Stuby do builda bez pełnego USB/DFU – dostarczają brakujące symbole.
 
 #include <string>
+#include <vector>
 
-// Dopasuj dokładnie do deklaracji z nagłówków projektowych:
 #include "usb_serial.hpp"            // portapack::USBSerial
-#include "usb_serial_asyncmsg.hpp"   // UsbSerialAsyncmsg, STRINGCOVER
+#include "usb_serial_asyncmsg.hpp"   // UsbSerialAsyncmsg
 
 namespace portapack {
 
-// Odpowiada metodom zadeklarowanym w usb_serial.hpp
+// Dokładnie jak w usb_serial.hpp:
 void USBSerial::initialize() {}
 void USBSerial::dispatch() {}
 void USBSerial::dispatch_transfer() {}
@@ -17,7 +17,7 @@ void USBSerial::dispatch_transfer() {}
 }  // namespace portapack
 
 // ----------------------------------------------------------------------
-// Wątek USB – zapewnij *out-of-line* dtor, żeby link wyemitował symbol.
+// Wątek USB – zapewnij symbol destruktora (jest odwołanie w kodzie).
 class UsbSerialThread {
 public:
     ~UsbSerialThread();
@@ -25,25 +25,37 @@ public:
 UsbSerialThread::~UsbSerialThread() {}
 
 // ----------------------------------------------------------------------
-// Asynchroniczne wiadomości – w nagłówku to *statyczna* metoda z aliasem
-// STRINGCOVER. Definiujemy dokładnie tę sygnaturę, bez szablonów.
-void UsbSerialAsyncmsg::asyncmsg(const STRINGCOVER& /*data*/) {}
+// Asynchroniczne wiadomości – zdefiniuj szablony *i* jawne instancje
+// dla typów używanych w logach (std::string, vector<uint8_t> itp.).
+
+template <typename STRINGCOVER>
+void UsbSerialAsyncmsg::asyncmsg(const STRINGCOVER&) {}
+
+template <typename VECTORCOVER>
+void UsbSerialAsyncmsg::asyncmsg(const std::vector<VECTORCOVER>&) {}
+
+void UsbSerialAsyncmsg::asyncmsg(const char*) {}
+
+// Jawne instancjonowania – rozszerz w razie potrzeby gdyby link wołał o kolejne typy.
+template void UsbSerialAsyncmsg::asyncmsg<std::string>(const std::string&);
+template void UsbSerialAsyncmsg::asyncmsg<unsigned char>(const std::vector<unsigned char>&);
+template void UsbSerialAsyncmsg::asyncmsg<uint8_t>(const std::vector<uint8_t>&);
 
 // ----------------------------------------------------------------------
-// i2c shell glue – dopasuj do deklaracji z i2cdev_ppmod.cpp
+// i2c shell glue – sygnatura zgodna z i2cdev_ppmod.cpp.
 struct EventDispatcher;
 void create_shell_i2c(EventDispatcher* /*evtd*/) {}
 
 // ----------------------------------------------------------------------
-// Widoki/ekrany, które wycięliśmy z builda (DFU, mass-storage USB, SubGhzD).
-// Definiujemy minimalne konstruktory/dtory, żeby powstały vtable’e.
-// (Zachowujemy przestrzeń nazw i nazwy klas z nagłówków projektu.)
+// Minimalne definicje konstruktorów/destruktorów dla widoków, których
+// implementacje są pomijane w tym wariancie buildu (DFU, SD over USB, SubGhzD).
+// Dzięki temu powstają vtable i znikają "undefined reference".
 
 namespace ui {
 
 class NavigationView;
 
-// DFU
+// DFU menu
 class DfuMenu {
 public:
     DfuMenu(NavigationView&) {}
@@ -62,7 +74,7 @@ public:
     virtual ~SdOverUsbView() = default;
 };
 
-// SubGhzD menu
+// SubGhzD
 class SubGhzDView {
 public:
     SubGhzDView(NavigationView&) {}
