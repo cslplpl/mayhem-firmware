@@ -57,19 +57,17 @@ struct TPMSRecentEntry {
 
     size_t received_count{0};
 
-    Optional<Pressure> last_pressure{};
+    bool renault{false};  // DODANE: znacznik ramek Renault (UI dopisze [R])
+
+    Optional<Pressure>    last_pressure{};
     Optional<Temperature> last_temperature{};
     Optional<tpms::Flags> last_flags{};
 
-    TPMSRecentEntry(
-        const Key& key)
+    TPMSRecentEntry(const Key& key)
         : type{key.first},
-          id{key.second} {
-    }
+          id{key.second} {}
 
-    Key key() const {
-        return {type, id};
-    }
+    Key key() const { return {type, id}; }
 
     void update(const tpms::Reading& reading);
 };
@@ -99,7 +97,7 @@ class TPMSAppView : public View {
 
     // Prevent painting of region covered entirely by a child.
     // TODO: Add flag to View that specifies view does not need to be cleared before painting.
-    void paint(Painter&) override{};
+    void paint(Painter&) override {};
 
     void focus() override;
 
@@ -107,17 +105,16 @@ class TPMSAppView : public View {
 
    private:
     RxRadioState radio_state_{
-        314900000 /* frequency*/
-        ,
-        1750000 /* bandwidth */,
-        2457600 /* sampling rate */
+        314900000 /* frequency*/,
+        1750000   /* bandwidth */,
+        2457600   /* sampling rate */
     };
 
     app_settings::SettingsManager settings_{
         "rx_tpms",
         app_settings::Mode::RX,
         {
-            {"units_psi"sv, &format::units_psi},
+            {"units_psi"sv,  &format::units_psi},
             {"units_fahr"sv, &format::units_fahr},
         }};
 
@@ -175,16 +172,16 @@ class TPMSAppView : public View {
     VGAGainField field_vga{
         {18 * 8, 0 * 16}};
 
-    TPMSRecentEntries recent{};
-    std::unique_ptr<TPMSLogger> logger{};
+    TPMSRecentEntries              recent{};
+    std::unique_ptr<TPMSLogger>    logger{};
 
     const RecentEntriesColumns columns{{
-        {"Tp", 2},
-        {"ID", 8},
+        {"Tp",   2},
+        {"ID",   8},
         {"Pres", 4},
         {"Temp", 4},
-        {"Cnt", 3},
-        {"Fl", 2},
+        {"Cnt",  3},
+        {"Fl",   2},
     }};
     TPMSRecentEntriesView recent_entries_view{columns, recent};
 
