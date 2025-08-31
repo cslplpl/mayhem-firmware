@@ -12,10 +12,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout (with submodules)
+      - name: Checkout (with recursive submodules)
         uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Init submodules (recursive)
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+          git submodule status --recursive
 
       - name: Install toolchain & build deps
         run: |
@@ -34,12 +41,20 @@ jobs:
       - name: Build
         run: cmake --build build -j
 
+      - name: Package artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts
+          shopt -s globstar nullglob
+          cp -v build/**/*.bin artifacts/ || true
+          cp -v build/**/*.ppfw artifacts/ || true
+          if [ -d sdcard ]; then
+            tar -C sdcard -czf artifacts/sdcard.tgz .
+          fi
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mayhem-renault-firmware
-          path: |
-            build/**/*.bin
-            build/**/*.ppfw
-            sdcard/**/*
+          path: artifacts/**
           if-no-files-found: warn
