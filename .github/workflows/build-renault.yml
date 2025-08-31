@@ -24,13 +24,11 @@ jobs:
           git submodule update --init --recursive
           git submodule status --recursive
 
-      # ── Host deps (bez apt: gcc-arm-none-eabi!) ───────────────────────────────
       - name: Install host build deps
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build python3 curl tar xz-utils bzip2
 
-      # ── Właściwy toolchain: Arm GNU 9-2019-q4-major (gcc 9.2.1) ──────────────
       - name: Install Arm GNU Toolchain 9-2019-q4-major
         run: |
           set -e
@@ -38,20 +36,20 @@ jobs:
           mkdir -p "$HOME/arm-gcc"
           curl -L "$TOOLCHAIN_URL" -o "$HOME/arm-gcc/toolchain.tar.bz2"
           tar -xf "$HOME/arm-gcc/toolchain.tar.bz2" -C "$HOME/arm-gcc" --strip-components=1
+          # Dodaj do PATH dla kolejnych kroków
           echo "$HOME/arm-gcc/bin" >> "$GITHUB_PATH"
-          arm-none-eabi-gcc --version
+          # W tym kroku użyj pełnej ścieżki:
+          "$HOME/arm-gcc/bin/arm-none-eabi-gcc" --version
 
-      # ── CMake + Ninja ────────────────────────────────────────────────────────
       - name: Configure (CMake, Release)
         env:
-          CC: arm-none-eabi-gcc
-          CXX: arm-none-eabi-g++
+          CC:  ${{ env.HOME }}/arm-gcc/bin/arm-none-eabi-gcc
+          CXX: ${{ env.HOME }}/arm-gcc/bin/arm-none-eabi-g++
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build -j
 
-      # ── Spakuj artefakty ─────────────────────────────────────────────────────
       - name: Package artifacts
         if: always()
         run: |
