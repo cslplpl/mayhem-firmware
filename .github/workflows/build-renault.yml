@@ -40,7 +40,7 @@ jobs:
           echo "$HOME/arm-gcc/bin" >> "$GITHUB_PATH"
           "$HOME/arm-gcc/bin/arm-none-eabi-gcc" --version
 
-      - name: Configure (CMake, MinSizeRel, no LTO)
+      - name: Configure (CMake, MinSizeRel)
         env:
           CC:  ${{ env.HOME }}/arm-gcc/bin/arm-none-eabi-gcc
           CXX: ${{ env.HOME }}/arm-gcc/bin/arm-none-eabi-g++
@@ -51,22 +51,21 @@ jobs:
             -DCMAKE_CXX_FLAGS_MINSIZEREL="-Os -ffunction-sections -fdata-sections" \
             -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections"
 
-      - name: Build
-        run: cmake --build build -j
+      # ⬇️ Kluczowa zmiana: budujemy WYŁĄCZNIE application.elf (bez basebandów)
+      - name: Build (application only)
+        run: |
+          cmake --build build --target application.elf -j
+          # Upewnij się, że powstał .bin (czasem jest generowany automatycznie, ale na wszelki wypadek…)
+          if [ ! -f build/firmware/application/application.bin ]; then
+            "$HOME/arm-gcc/bin/arm-none-eabi-objcopy" -Obinary \
+              build/firmware/application/application.elf \
+              build/firmware/application/application.bin
+          fi
 
       - name: Package artifacts
         if: always()
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          find build -type f \( -name "*.bin" -o -name "*.ppfw" \) -print0 | xargs -0 -I {} bash -c 'dst="artifacts/$(dirname "{}")"; mkdir -p "$dst"; cp -v "{}" "$dst"/'
-          if [ -d sdcard ]; then
-            tar -C sdcard -czf artifacts/sdcard.tgz .
-          fi
-
-      - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mayhem-renault-firmware
-          path: artifacts/**
-          if-no-files-found: warn
+          # Zbierz tylko to, czego potrzebujesz do flashowania PortaPacka:
+          find build/firmware/application -type f \( -name "application.elf" -o -name "application.bin
