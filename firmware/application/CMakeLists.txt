@@ -104,6 +104,7 @@ set(LDSCRIPT ${PORTLD}/LPC43xx_M0.ld)
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
+# USB **wyłączone**: wszystkie pliki usb_serial_* i hackrf/firmware/* USB usunięte.
 set(CSRC
 	${PORTSRC}
 	${KERNSRC}
@@ -113,14 +114,7 @@ set(CSRC
 	${BOARDSRC}
 	${FATFSSRC}
 	firmware_info.c
-	usb_serial_cdc.c
-	usb_serial_descriptor.c
-	usb_serial_endpoints.c
-	usb_serial_device_to_host.c
 	i2c_device_to_host.c
-	${HACKRF_PATH}/firmware/hackrf_usb/usb_device.c
-	${HACKRF_PATH}/firmware/common/usb_request.c
-	${HACKRF_PATH}/firmware/common/usb_standard_request.c
 	${CHIBIOS}/os/various/chprintf.c
 )
 
@@ -129,6 +123,7 @@ file(GLOB I2CDEV_SOURCES ${COMMON}/i2cdev_*.cpp)
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
+# USB **wyłączone**: usunięto usb_serial*.cpp oraz ekrany DFU/SD-over-USB.
 set(CPPSRC
 	main.cpp
 	shell.cpp
@@ -208,13 +203,14 @@ set(CPPSRC
 	metadata_file.cpp
 	flipper_subfile.cpp
 	portapack.cpp
-	usb_serial_shell.cpp
-	usb_serial_shell_filesystem.cpp
-	usb_serial_event.cpp
-	usb_serial_thread.cpp
-	usb_serial.cpp
-	usb_serial_host_to_device.cpp
-	usb_serial_asyncmsg.cpp
+	# USB wyłączone:
+	# usb_serial_shell.cpp
+	# usb_serial_shell_filesystem.cpp
+	# usb_serial_event.cpp
+	# usb_serial_thread.cpp
+	# usb_serial.cpp
+	# usb_serial_host_to_device.cpp
+	# usb_serial_asyncmsg.cpp
 	qrcodegen.cpp
 	radio.cpp
 	receiver_model.cpp
@@ -282,7 +278,8 @@ set(CPPSRC
 	apps/ui_btle_rx.cpp
 	apps/ui_debug.cpp
 	apps/ui_debug_max17055.cpp
-	apps/ui_dfu_menu.cpp
+	# USB/DFU OFF:
+	# apps/ui_dfu_menu.cpp
 	apps/ui_encoders.cpp
 	apps/ui_external_module_view.cpp
 	apps/ui_fileman.cpp
@@ -297,14 +294,14 @@ set(CPPSRC
 	apps/ui_rds.cpp
 	apps/ui_recon_settings.cpp
 	apps/ui_recon.cpp
-	apps/ui_sd_over_usb.cpp
+	# USB mass storage OFF:
+	# apps/ui_sd_over_usb.cpp
 	apps/ui_search.cpp
 	apps/ui_settings.cpp
 	apps/ui_siggen.cpp
 	apps/ui_sonde.cpp
 	apps/ui_ss_viewer.cpp
 	apps/ui_standalone_view.cpp
-	apps/ui_subghzd.cpp
 	# apps/ui_test.cpp
 	apps/ui_text_editor.cpp
 	apps/ui_touch_calibration.cpp
@@ -326,28 +323,15 @@ set(CPPSRC
 	view_factory_base.cpp
 )
 
-set_source_files_properties(${CPPSRC} PROPERTIES COMPILE_FLAGS -flto) # Add lto flag to the non-external sources only
+# Dodaj LTO do wewnętrznych (nie-external) źródeł C++
+set_source_files_properties(${CPPSRC} PROPERTIES COMPILE_FLAGS -flto)
+# Dołóż moduły z external po ustawieniu flag
+list (APPEND CPPSRC ${EXTCPPSRC})
 
-list (APPEND CPPSRC ${EXTCPPSRC}) # Append external sources after setting lto flag to internal ones
-
-# C sources to be compiled in ARM mode regardless of the global setting.
-# NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
-#       option that results in lower performance and larger code size.
+# C/ASM lists (arm/thumb) – bez zmian
 set(ACSRC)
-
-# C++ sources to be compiled in ARM mode regardless of the global setting.
-# NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
-#       option that results in lower performance and larger code size.
 set(ACPPSRC)
-
-# C sources to be compiled in THUMB mode regardless of the global setting.
-# NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
-#       option that results in lower performance and larger code size.
 set(TCSRC)
-
-# C sources to be compiled in THUMB mode regardless of the global setting.
-# NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
-#       option that results in lower performance and larger code size.
 set(TCPPSRC)
 
 # List ASM source files here
@@ -356,13 +340,17 @@ set(ASMSRC
 	lz4.S
 )
 
-set(INCDIR ${CMAKE_CURRENT_BINARY_DIR} ${COMMON} ${PORTINC} ${KERNINC} ${TESTINC}
+# Ścieżki nagłówków — USUWAMY libopencm3/USB z HackRF:
+set(INCDIR
+	${CMAKE_CURRENT_BINARY_DIR}
+	${COMMON}
+	${PORTINC} ${KERNINC} ${TESTINC}
 	${HALINC} ${PLATFORMINC} ${BOARDINC}
 	${FATFSINC}
 	${CHIBIOS}/os/various
-	${HACKRF_PATH}/firmware/libopencm3/include
-	${HACKRF_PATH}/firmware/common
-	${HACKRF_PATH}/firmware
+	# ${HACKRF_PATH}/firmware/libopencm3/include   # removed
+	# ${HACKRF_PATH}/firmware/common               # removed
+	# ${HACKRF_PATH}/firmware                      # removed
 	ui
 	hw
 	apps
