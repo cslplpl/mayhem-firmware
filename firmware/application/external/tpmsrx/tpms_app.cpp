@@ -230,22 +230,97 @@ void TPMSAppView::on_packet(const tpms::Packet& packet) {
     }
 
     // --- [Renault] spróbuj dekodować ramkę Renault 0435R z surowych symboli ---
-    // Pobierz symbole w heksie (jak zapisuje logger) i przerób na bajty
     const auto hex_formatted = packet.symbols_formatted(); // ma .data i .errors
     std::vector<uint8_t> ren_bytes = bytes_from_hex(hex_formatted.data);
 
     RenaultFrame rf;
     if (!ren_bytes.empty() && decode_renault_payload(ren_bytes, rf)) {
         // Dodaj/zaktualizuj wpis Recent z kluczem (typ=None, ID=rf.id)
-        auto& entry = ::on_packet(recent, TPMSRecentEntry::Key{tpms::Reading::Type::None, rf.id});
+        auto& entry = ::on_packet(recent, TPMSRecentEntry::Key{
+            tpms::Reading::Type::None, rf.id
+        });
 
         // Oznacz jako Renault (dopisek [R] w tabeli)
         entry.renault = true;
         entry.received_count++;
 
-        // (opcjonalnie można by ustawić last_pressure/last_temperature,
-        //  ale typy Pressure/Temperature są specyficzne — zostawiamy minimalnie wymagane)
-
+        // Odśwież widok + beep (spójnie ze ścieżką standardową)
         recent_entries_view.set_dirty();
+        if (pmem::beep_on_packets()) {
+            baseband::request_audio_beep(1000, 24000, 60);
+        }
+        return; // mamy zdekodowaną ramkę Renault — nie idź dalej
+    }
+    // --- [/Renault] ------------------------------------------------------------
 
-        if (pmem::beep_on_packets())
+    // Standardowa ścieżka: dekodery wbudowane (Schrader itd.)
+    const auto reading_opt = packet.reading();
+    if (reading_opt.is_valid()) {
+        const auto reading = reading_opt.value();
+        auto& entry = ::on_packet(recent, TPMSRecentEntry::Key{reading.type(), reading.id()});
+        entry.update(reading);
+        recent_entries_view.set_dirty();
+    }
+
+    if (pmem::beep_on_packets()) {
+        baseband::request_audio_beep(1000, 24000, 60);
+    }
+}
+
+void TPMSAppView::on_show_list() {
+    recent_entries_view.hidden(false);
+    recent_entries_view.focus();
+}
+
+}  // namespace ui::external_app::tpmsrx
+
+namespace ui {
+
+template <>
+void RecentEntriesTable<ui::external_app::tpmsrx::TPMSRecentEntries>::draw(
+    const Entry& entry,
+    const Rect& target_rect,
+    Painter& painter,
+    const Style& style) {
+    std::string line = ui::external_app::tpmsrx::format::type(entry.type) + " " + ui::external_app::tpmsrx::format::id(entry.id);
+
+    if (entry.last_pressure.is_valid()) {
+        line += "  " + ui::external_app::tpmsrx::format::pressure(entry.last_pressure.value());
+    } else {
+        line +=
+            "  "
+            "   ";
+    }
+
+    if (entry.last_temperature.is_valid()) {
+        line += "  " + ui::external_app::tpmsrx::format::temperature(entry.last_temperature.value());
+    } else {
+        line +=
+            "  "
+            "   ";
+    }
+
+    if (entry.received_count > 999) {
+        line += " +++";
+    } else {
+        line += " " + to_string_dec_uint(entry.received_count, 3);
+    }
+
+    if (entry.last_flags.is_valid()) {
+        line += " " + ui::external_app::tpmsrx::format::flags(entry.last_flags.value());
+    } else {
+        line +=
+            " "
+            "  ";
+    }
+
+    // Dopisek dla ramek Renault
+    if (entry.renault) {
+        line += " [R]";
+    }
+
+    line.resize(target_rect.width() / 8, ' ');
+    painter.draw_string(target_rect.location(), style, line);
+}
+
+}  // namespace ui
