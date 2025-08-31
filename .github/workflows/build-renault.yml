@@ -27,8 +27,9 @@ jobs:
       - name: Install host build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build python3 curl tar xz-utils bzip2
+          sudo apt-get install -y cmake ninja-build python3 curl tar xz-utils bzip2 dfu-util
 
+      # Arm GNU Toolchain 9-2019-q4-major (gcc 9.2.1) — zgodny z projektem
       - name: Install Arm GNU Toolchain 9-2019-q4-major
         run: |
           set -e
@@ -36,9 +37,7 @@ jobs:
           mkdir -p "$HOME/arm-gcc"
           curl -L "$TOOLCHAIN_URL" -o "$HOME/arm-gcc/toolchain.tar.bz2"
           tar -xf "$HOME/arm-gcc/toolchain.tar.bz2" -C "$HOME/arm-gcc" --strip-components=1
-          # Dodaj do PATH dla kolejnych kroków
           echo "$HOME/arm-gcc/bin" >> "$GITHUB_PATH"
-          # W tym kroku użyj pełnej ścieżki:
           "$HOME/arm-gcc/bin/arm-none-eabi-gcc" --version
 
       - name: Configure (CMake, Release)
