@@ -31,6 +31,53 @@ using namespace portapack;
 
 #include "utility.hpp"
 #include "file_path.hpp"
+// ==== Renault TPMS helpers (0435R) =====================================
+
+static inline uint8_t crc8_poly07(const uint8_t* d, size_t n) {
+    uint8_t c = 0x00;
+    for (size_t i = 0; i < n; i++) {
+        c ^= d[i];
+        for (int b = 0; b < 8; b++) c = (c & 0x80) ? uint8_t((c<<1) ^ 0x07) : uint8_t(c<<1);
+    }
+    return c;
+}
+
+// Jeśli masz bity Manchester – zamień je na bajty.
+// Jeśli z packetu masz już gotowe bajty, tej funkcji nie używaj.
+static std::vector<uint8_t> manchester_to_bytes(const std::vector<uint8_t>& bits) {
+    std::vector<uint8_t> data_bits;
+    data_bits.reserve(bits.size() / 2);
+    for (size_t i = 0; i + 1 < bits.size(); i += 2) {
+        const uint8_t a = bits[i], b = bits[i + 1];
+        if (a == 1 && b == 0) data_bits.push_back(1);   // 10 -> 1
+        else if (a == 0 && b == 1) data_bits.push_back(0); // 01 -> 0
+    }
+    std::vector<uint8_t> out((data_bits.size() + 7) / 8, 0);
+    for (size_t i = 0; i < data_bits.size(); ++i)
+        out[i >> 3] |= (data_bits[i] & 1) << (7 - (i & 7));
+    return out;
+}
+
+struct RenaultFrame { uint32_t id; float pressure_kpa; int temp_c; };
+
+static bool decode_renault_payload(const std::vector<uint8_t>& d, RenaultFrame& out) {
+    if (d.size() != 10 && d.size() != 9) return false;      // 9 danych + CRC
+    if (d.size() == 10 && crc8_poly07(d.data(), 9) != d[9]) return false;
+
+    // Mapowanie wg rtl_433: P=10 bitów (0.75 kPa/LSB), T=byte-30, ID=3 bajty
+    const uint16_t p_raw = (uint16_t(d[1] & 0x03) << 8) | d[0];
+    const float pressure_kpa = p_raw * 0.75f;
+    const int   temp_c = int(d[2]) - 30;
+    const uint32_t id = (uint32_t(d[4]) << 16) | (uint32_t(d[5]) << 8) | uint32_t(d[6]);
+
+    if (pressure_kpa < 50.0f || pressure_kpa > 500.0f) return false; // 0.5–5.0 bar
+    if (temp_c < -40 || temp_c > 125) return false;
+
+    out = RenaultFrame{ id, pressure_kpa, temp_c };
+    return true;
+}
+// ==== /Renault helpers =================================================
+
 
 namespace pmem = portapack::persistent_memory;
 
