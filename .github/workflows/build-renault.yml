@@ -29,7 +29,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build python3 curl tar xz-utils bzip2 dfu-util
 
-      # Arm GNU Toolchain 9-2019-q4-major (gcc 9.2.1)
+      # Arm GNU Toolchain 9-2019-q4-major (gcc 9.2.1) — zgodny z Mayhem/ChibiOS
       - name: Install Arm GNU Toolchain 9-2019-q4-major
         run: |
           set -e
@@ -40,11 +40,17 @@ jobs:
           echo "$HOME/arm-gcc/bin" >> "$GITHUB_PATH"
           "$HOME/arm-gcc/bin/arm-none-eabi-gcc" --version
 
-      - name: Configure (CMake, Release)
+      - name: Configure (CMake, MinSizeRel + LTO)
         env:
           CC:  ${{ env.HOME }}/arm-gcc/bin/arm-none-eabi-gcc
           CXX: ${{ env.HOME }}/arm-gcc/bin/arm-none-eabi-g++
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=MinSizeRel \
+            -DCMAKE_C_FLAGS_MINSIZEREL="-Os -ffunction-sections -fdata-sections -flto" \
+            -DCMAKE_CXX_FLAGS_MINSIZEREL="-Os -ffunction-sections -fdata-sections -flto" \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -flto" \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
 
       - name: Build
         run: cmake --build build -j
@@ -54,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          # Zbierz .bin i .ppfw, jeśli istnieją:
+          # Zbierz wszystkie wygenerowane pliki .bin i .ppfw, jeśli istnieją:
           find build -type f \( -name "*.bin" -o -name "*.ppfw" \) -print0 | xargs -0 -I {} bash -c 'dst="artifacts/$(dirname "{}")"; mkdir -p "$dst"; cp -v "{}" "$dst"/'
           # Spakuj opcjonalny folder sdcard:
           if [ -d sdcard ]; then
